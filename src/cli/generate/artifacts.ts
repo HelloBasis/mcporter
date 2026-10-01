@@ -161,24 +161,40 @@ async function bundleWithBun({
   return absTarget;
 }
 
-export async function compileBundleWithBun(bundlePath: string, outputPath: string): Promise<void> {
+export async function compileBundleWithBun(bundlePath: string, outputPath: string, target?: string): Promise<void> {
   const bunBin = await verifyBunAvailable();
+  const args = ['build', bundlePath, '--compile', '--outfile', outputPath];
+  if (target) {
+    args.push(`--target=${target}`);
+  }
   await new Promise<void>((resolve, reject) => {
-    execFile(
-      bunBin,
-      ['build', bundlePath, '--compile', '--outfile', outputPath],
-      { cwd: process.cwd(), env: process.env, windowsHide: true },
-      (error) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-        resolve();
+    execFile(bunBin, args, { cwd: process.cwd(), env: process.env, windowsHide: true }, (error) => {
+      if (error) {
+        reject(error);
+        return;
       }
-    );
+      resolve();
+    });
   });
 
   await markExecutable(outputPath);
+  const producesDarwinBinary = target ? target.includes('darwin') : process.platform === 'darwin';
+  if (process.platform === 'darwin' && producesDarwinBinary) {
+    await adhocCodesign(outputPath);
+  }
+}
+
+// Bun writes the bundle into the binary after linking, which leaves the Mach-O signature
+// stale; recent macOS kills such binaries on launch, so re-sign with an ad-hoc identity.
+async function adhocCodesign(binaryPath: string): Promise<void> {
+  await new Promise<void>((resolve) => {
+    execFile('codesign', ['--force', '--sign', '-', binaryPath], (error) => {
+      if (error) {
+        console.error(`[mcporter] codesign failed for ${binaryPath}: ${error.message}`);
+      }
+      resolve();
+    });
+  });
 }
 
 export function resolveBundleTarget({

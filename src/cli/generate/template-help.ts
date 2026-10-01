@@ -25,11 +25,31 @@ function configureToolCommandHelps(): void {
 \t});
 }
 
+function renderToolSchemaHelp(toolName: string, example: string): string {
+\tconst lines = ['', 'Example:', '  ' + example];
+\tconst schema = embeddedSchemas[toolName];
+\tif (schema) {
+\t\tlines.push(
+\t\t\t'',
+\t\t\t'Input schema (JSON Schema). Each top-level property is a flag; object/array flags take a JSON string.',
+\t\t\t'Pass the whole arguments object at once with --raw <json>.',
+\t\t\tJSON.stringify(schema, null, 2)
+\t\t);
+\t}
+\treturn lines.join('\\n') + '\\n';
+}
+
 function renderStandaloneHelp(): string {
 \tconst colorfulTitle = tint.bold(embeddedName) + ' ' + tint.dim('— ' + embeddedDescription);
 \tconst plainTitle = embeddedName + ' — ' + embeddedDescription;
 \tconst title = supportsAnsiColor ? colorfulTitle : plainTitle;
-\tconst lines = [title, '', 'Usage: ' + embeddedName + ' <command> [options]', ''];
+\tconst lines = [
+\t\ttitle,
+\t\t'',
+\t\t'Usage: ' + embeddedName + ' <command> [options]',
+\t\t'       ' + embeddedName + ' <command> --help    # full JSON input schema + example for one command',
+\t\t'',
+\t];
 \tif (generatorTools) {
 \t\tlines.push(formatEmbeddedTools());
 \t}

@@ -29,6 +29,7 @@ export interface GenerateCliOptions {
   readonly timeoutMs?: number;
   readonly minify?: boolean;
   readonly compile?: boolean | string;
+  readonly compileTarget?: string;
   readonly includeTools?: string[];
   readonly excludeTools?: string[];
 }
@@ -152,7 +153,7 @@ export async function generateCli(
           throw new Error('--compile is only supported when --runtime bun');
         }
         const compileTarget = resolvedCompileTarget ?? computeCompileTarget(options.compile, bundlePath, name);
-        await compileBundleWithBun(bundlePath, compileTarget);
+        await compileBundleWithBun(bundlePath, compileTarget, options.compileTarget);
         compilePath = compileTarget;
         if (!options.bundle) {
           await fs.rm(bundlePath).catch(() => {});

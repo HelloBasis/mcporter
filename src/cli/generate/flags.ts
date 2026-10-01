@@ -13,6 +13,7 @@ export interface GenerateFlags {
   bundler?: 'rolldown' | 'bun';
   bundle?: boolean | string;
   compile?: boolean | string;
+  compileTarget?: string;
   runtime?: 'node' | 'bun';
   timeout?: number;
   minify?: boolean;
@@ -32,6 +33,7 @@ export function parseGenerateFlags(args: string[]): GenerateFlags {
   let bundler: 'rolldown' | 'bun' | undefined;
   let bundle: boolean | string | undefined;
   let compile: boolean | string | undefined;
+  let compileTarget: string | undefined;
   const runtime: 'node' | 'bun' | undefined = common.runtime;
   const timeout = common.timeout;
   let minify: boolean | undefined;
@@ -126,6 +128,11 @@ export function parseGenerateFlags(args: string[]): GenerateFlags {
       }
       continue;
     }
+    if (token === '--compile-target') {
+      compileTarget = expectValue(token, args[index + 1]);
+      args.splice(index, 2);
+      continue;
+    }
     if (token === '--minify') {
       minify = true;
       args.splice(index, 1);
@@ -174,6 +181,7 @@ export function parseGenerateFlags(args: string[]): GenerateFlags {
     bundler,
     bundle,
     compile,
+    compileTarget,
     runtime,
     timeout,
     minify,

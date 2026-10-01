@@ -9,6 +9,7 @@ import { markExecutable } from './fs-helpers.js';
 import { renderEmbeddedHelpSource } from './template-help.js';
 import type { GeneratedOption, ToolMetadata } from './tools.js';
 import { buildEmbeddedSchemaMap, toCliOptionKey } from './tools.js';
+import { sampleFromSchema } from './schema-example.js';
 import { stableJsonStringify } from '../../stable-json.js';
 
 export interface TemplateInput {
@@ -182,6 +183,9 @@ ${renderEmbeddedHelpSource()}
 function printResult(result: unknown, format: string) {
 \tconst wrapped = createCallResult(result);
 \tconst rawPayload = unwrapRawPayload(wrapped.raw);
+\tif (rawPayload && typeof rawPayload === 'object' && (rawPayload as { isError?: unknown }).isError === true) {
+\t\tprocess.exitCode = 1;
+\t}
 \tswitch (format) {
 \t\tcase 'json': {
 \t\t\tconst json = wrapped.json();
@@ -489,10 +493,8 @@ export function renderToolCommand(
   const signature = summary;
   const usageSnippet = flagUsage ? `.usage(${JSON.stringify(flagUsage)})\n` : '';
   const tsSignature = doc.tsSignature;
-  const exampleText = doc.examples[0];
-  const exampleSnippet = exampleText
-    ? `\n\t.addHelpText('after', () => '\\nExample:\\n  ' + ${JSON.stringify(exampleText)})`
-    : '';
+  const exampleText = buildCliExample(serverName, commandName, tool);
+  const exampleSnippet = `\n\t.addHelpText('after', () => renderToolSchemaHelp(${JSON.stringify(tool.tool.name)}, ${JSON.stringify(exampleText)}))`;
   const optionalSnippet = doc.optionalSummary
     ? `\n\t.addHelpText('afterAll', () => '\\n' + ${JSON.stringify(doc.optionalSummary)} + '\\n')`
     : '';
@@ -525,6 +527,33 @@ ${aliasSnippet ? `\t${aliasSnippet}` : ''}\t.action(async (cmdOpts) => {
 \t\t}
 \t})${exampleSnippet}${optionalSnippet};`;
   return { block, commandName, signature, tsSignature };
+}
+
+// Example values come from the JSON schema itself so nested object flags show a real payload
+// (`--params '{"id":"example-id"}'`) instead of a placeholder the server would reject.
+function buildCliExample(serverName: string, commandName: string, tool: ToolMetadata): string {
+  const schema = tool.tool.inputSchema as Record<string, unknown> | undefined;
+  const properties =
+    schema && typeof schema.properties === 'object' && schema.properties !== null
+      ? (schema.properties as Record<string, unknown>)
+      : {};
+  const required = tool.options.filter((option) => option.required);
+  const shown = required.length > 0 ? required : tool.options.slice(0, 2);
+  const flags = shown.map((option) => {
+    const sample = sampleFromSchema(properties[option.property], option.property);
+    return `--${option.cliName} ${shellLiteral(sample)}`;
+  });
+  return [serverName, commandName, ...flags].join(' ');
+}
+
+function shellLiteral(value: unknown): string {
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  if (typeof value === 'string') {
+    return JSON.stringify(value);
+  }
+  return `'${JSON.stringify(value).replace(/'/g, `'\\''`)}'`;
 }
 
 function renderOption(optionDoc: ToolOptionDoc): string {
